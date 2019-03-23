@@ -14,7 +14,7 @@ WiFiServer server(80);
 // Stores the HTTP request
 String header;
 
-// Stores the current states
+// Stores the current states, disables tuning on boot
 String tuningState = "AUS";
 
 // Tuning-specific
@@ -29,8 +29,8 @@ byte sendBytes[numBytes];
 
 void setup() {
   // Serial configuration
-  Serial.begin(115200);                                    //USB-Serial console
-  Serial1.begin(9600, SERIAL_8N1, 12, 13);                 //Additional consoles for display and controller communication
+  Serial.begin(115200);                                    // USB-Serial console
+  Serial1.begin(9600, SERIAL_8N1, 12, 13);                 // Additional consoles for display and controller communication
   Serial2.begin(9600, SERIAL_8N1, 14, 15);
 
   // Starting WiFi-AP
@@ -45,34 +45,31 @@ void setup() {
 
 // Tuning-Loop
 void loop() {
-  recvBytesWithStartEndMarkers1();       // Nachsehen ob neues Telegramm von Display da ist
-  modNewData();                        // Bytes tauschen
-  Checksumm();                         // checksumme berechnen
-  showNewData();                       //verändertes Telegramm senden
-  recvBytesWithStartEndMarkers2();       // Nachsehen ob neues Telegramm von Motorcontroller da ist
+  recvBytesWithStartEndMarkers1();                          // Checks for new message from display
+  modNewData();                                             // Does the magic
+  Checksumm();                                              // Calculates the checksum
+  showNewData();                                            // Sends modified data
+  recvBytesWithStartEndMarkers2();                          // Checks for new message from controller
 
   // WiFi-Loop
-  WiFiClient client = server.available();               // Auf neue Clientverbindung warten
-  if (client) {                                       // Wenn Client verbindet
-    Serial.println("HTTP: New Client.");              // Nachricht in der Konsole loggen
-    String currentLine = "";                          // String der Daten vom Client
-    while (client.connected()) {                      // Loop während der Client verbunden ist
-      if (client.available()) {                       // Falls Daten vom Client kommen
-        char c = client.read();                       // Byte lesen, dann
-        Serial.write(c);                              // print it out the serial monitor
+  WiFiClient client = server.available();                   // Checks for new Webclient
+  if (client) {                                             // If client ist connected
+    String currentLine = "";                                // String with client Data
+    while (client.connected()) {                            // Loop while client ist connected
+      if (client.available()) {                             // If recieving data from client
+        char c = client.read();                             // read the bytes
         header += c;
-        if (c == '\n') {                    // if the byte is a newline character
+        if (c == '\n') {                                    // If the byte is a newline character
           // if the current line is blank, you got two newline characters in a row.
           // that's the end of the client HTTP request, so send a response:
           if (currentLine.length() == 0) {
             // HTTP headers always start with a response code (e.g. HTTP/1.1 200 OK)
-            // and a content-type so the client knows what's coming, then a blank line:
             client.println("HTTP/1.1 200 OK");
             client.println("Content-type:text/html");
             client.println("Connection: close");
             client.println();
 
-            // turns tuning ON and OFF
+            // Turns tuning ON and OFF
             if (header.indexOf("GET /tuning/an") >= 0) {
               Serial.println("Tuning on");
               tuningState = "AN";
@@ -95,7 +92,7 @@ void loop() {
             client.println("<body><h1>Moscow Plus Controller</h1>");
 
             // Display current state, and ON/OFF buttons
-            client.println("<p>Tuning</p>");
+            client.println("<p>Tuning ist:</p>");
             if (tuningState == "AN") {
               client.println("<p><a href=\"/tuning/aus\"><button class=\"button\">AN</button></a></p>");
             } else {
@@ -117,8 +114,6 @@ void loop() {
     header = "";
     // Close the connection
     client.stop();
-    Serial.println("Client disconnected.");
-    Serial.println("");
   }
 }
 
@@ -209,13 +204,14 @@ void modNewData() {
   sendBytes[10] = 0x0D;                        // CR und LF ans Ende
   sendBytes[11] = 0x0A;
 
-  if (sendBytes[3] == (0x42) ) {                // Wenn das 4. Byte 0x42 (2. Stufe) dann
-    sendBytes[2] = (0x0B);                      //  3. Byte (Unterstützungslevel)
-    sendBytes[3] = (0x46);                      //  4. Byte (Stufe) auf 6
-    sendBytes[4] = (0x24);                      // und 5. Byte (Speed) auf 36km/h
+  if (tuningState == "AN") {                      // Nur, wenn Tuning via Web-Gui aktiviert ist!!
 
+    if (sendBytes[3] == (0x42) ) {                // Wenn das 4. Byte 0x42 (2. Stufe) dann
+      sendBytes[2] = (0x0B);                      //  3. Byte (Unterstützungslevel)
+      sendBytes[3] = (0x46);                      //  4. Byte (Stufe) auf 6
+      sendBytes[4] = (0x24);                      // und 5. Byte (Speed) auf 36km/h
+    }
   }
-
 }
 
 void Checksumm() {
