@@ -15,6 +15,6 @@ In this repository you will find several versions:
 - <b>Original</b> - Original code by vspadrva<br>
 - <b>Original-ESP32</b> - ESP32-ported version of the original Arduino code by vspadrva<br>
 <i>This enables a "power"-mode when in PAS 2. The bike will assist up to approx. 36 km/h</i><br>
-- <b>Web-AP</b> - Modified version of "Original-ESP32" wich creates a WiFi Access Point with a web server to enable/disable the options of this firmware.
+- <b>WiFi-AP</b> - Modified version of "Original-ESP32" wich creates a WiFi Access Point with a web server to enable/disable the options of this firmware.
 
 # Step by Step guide
