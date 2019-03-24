@@ -43,14 +43,22 @@ void setup() {
   Serial.println("  -= WiFi-AP & HTTP server started =-");
 }
 
-// Tuning-Loop
 void loop() {
+
+  tuning();
+  wifi();
+}
+
+// Tuning-Loop
+void tuning() {
   recvBytesWithStartEndMarkers1();                          // Checks for new message from display
   modNewData();                                             // Does the magic
   Checksumm();                                              // Calculates the checksum
   showNewData();                                            // Sends modified data
   recvBytesWithStartEndMarkers2();                          // Checks for new message from controller
+}
 
+void wifi() {
   // WiFi-Loop
   WiFiClient client = server.available();                   // Checks for new Webclient
   if (client) {                                             // If client ist connected
@@ -237,9 +245,6 @@ void showNewData() {
 
     }
     Serial.println();                          // bis hier DebugInfo via USB an PC
-
-
-
     Serial1.write(sendBytes, 12);             // Telegramm rausschicken
     newData1 = false;
   }
