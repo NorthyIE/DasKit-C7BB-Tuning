@@ -1,4 +1,4 @@
-<table style="text-align: left; width: 80%; height: 40%; margin-left: auto; margin-right: auto; font-family: Calibri;" border="1" cellpadding="2" cellspacing="0">
+<table style="text-align: left; width: 100%; height: 50%; margin-left: auto; margin-right: auto; font-family: Calibri;" border="1" cellpadding="2" cellspacing="0">
   <tbody>
     <tr style="font-weight: bold;" align="center">
       <td colspan="12" rowspan="1" style="vertical-align: top;">Controller -&gt; Display<br>

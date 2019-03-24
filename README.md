@@ -2,7 +2,7 @@ Für die deutsche Version, bitte hier klicken: <a href="https://github.com/North
 
 # Information
 
-The DasKit C7BB-Display sold with several NCM Bikes (Moscow, Moscow+, Moscow Plus, Venice, Venice+, ...) does not offer any tuning/unlocking options. Also, there is no thumb throttle function.
+The DasKit C7BB-Display sold with several NCM Bikes (Moscow+, Moscow Plus, Venice+, ...) does not offer any tuning/unlocking options. Also, there is no thumb throttle function.
 NCM sells another Display unlocking this feature (C6BBT), however this is very rarely available.
 
 With the help of this code, a cheap ESP32 and a cable you will be able to unlock these and add additional features with the original C7BB display.
