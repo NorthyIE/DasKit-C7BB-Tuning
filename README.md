@@ -1,3 +1,5 @@
+Für die deutsche Version, bitte hier klicken: <a href="https://github.com/NorthyIE/DasKit-C7BB-Tuning/blob/master/LIESMICH.md" target="_self">LIESMICH.md</a>
+
 # Information
 
 The DasKit C7BB-Display sold with several NCM Bikes (Moscow, Moscow+, Moscow Plus, Venice, Venice+, ...) does not offer any tuning/unlocking options. Also, there is no thumb throttle function.
@@ -15,6 +17,9 @@ In this repository you will find several versions:
 - <b>Original</b> - Original code by vspadrva<br>
 - <b>Original-ESP32</b> - ESP32-ported version of the original Arduino code by vspadrva<br>
 <i>This enables a "power"-mode when in PAS 2. The bike will assist up to approx. 36 km/h</i><br>
-- <b>WiFi-AP</b> - Modified version of "Original-ESP32" wich creates a WiFi Access Point with a web server to enable/disable the options of this firmware.
+- <b>WiFi-AP</b> - Modified version of "Original-ESP32" wich creates a WiFi Access Point with a web server to enable/disable the options of this firmware.<br>
+<b>Warning: This version is currently being worked on and might not work as expected</b><br>
 
 # Step by Step guide
+
+coming soon.
