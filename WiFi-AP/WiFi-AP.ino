@@ -1,5 +1,8 @@
 // Import libraries
 #include <WiFi.h>
+#include <Arduino.h>
+#include <ESPAsyncWebServer.h>
+#include <SPIFFS.h>
 
 // WiFi-AP SSID & Password
 const char* ssid = "Moscow Plus";
@@ -9,10 +12,7 @@ const char* password = "Moscow1234";
 IPAddress local_ip(192, 168, 1, 1);
 IPAddress gateway(192, 168, 1, 1);
 IPAddress subnet(255, 255, 255, 0);
-WiFiServer server(80);
-
-// Stores the HTTP request
-String header;
+AsyncWebServer server(80);
 
 // Stores the current states, disables tuning on boot
 String tuningState = "AUS";
@@ -27,6 +27,10 @@ boolean newData1 = false;
 boolean newData2 = false;
 byte sendBytes[numBytes];
 
+void notFound(AsyncWebServerRequest *request) {
+  request->send(404, "text/plain", "Nothing here..");
+}
+
 void setup() {
   // Serial configuration
   Serial.begin(115200);                                    // USB-Serial console
@@ -34,6 +38,10 @@ void setup() {
   Serial2.begin(9600, SERIAL_8N1, 14, 15);
 
   // Starting WiFi-AP
+  if (!SPIFFS.begin()) {
+    Serial.println("An Error has occurred while mounting SPIFFS");
+    return;
+  }
   WiFi.softAP(ssid, password);
   WiFi.softAPConfig(local_ip, gateway, subnet);
   server.begin();
@@ -41,88 +49,32 @@ void setup() {
   // Show on console when booted
   Serial.println("-= NCM Moscow Plus Controller ready =-");
   Serial.println("  -= WiFi-AP & HTTP server started =-");
-}
 
-void loop() {
-
-  tuning();
-  wifi();
-}
-
-// Tuning-Loop
-void tuning() {
-  recvBytesWithStartEndMarkers1();                          // Checks for new message from display
-  modNewData();                                             // Does the magic
-  Checksumm();                                              // Calculates the checksum
-  showNewData();                                            // Sends modified data
-  recvBytesWithStartEndMarkers2();                          // Checks for new message from controller
-}
-
-void wifi() {
-  // WiFi-Loop
-  WiFiClient client = server.available();                   // Checks for new Webclient
-  if (client) {                                             // If client ist connected
-    String currentLine = "";                                // String with client Data
-    while (client.connected()) {                            // Loop while client ist connected
-      if (client.available()) {                             // If recieving data from client
-        char c = client.read();                             // read the bytes
-        header += c;
-        if (c == '\n') {                                    // If the byte is a newline character
-          // if the current line is blank, you got two newline characters in a row.
-          // that's the end of the client HTTP request, so send a response:
-          if (currentLine.length() == 0) {
-            // HTTP headers always start with a response code (e.g. HTTP/1.1 200 OK)
-            client.println("HTTP/1.1 200 OK");
-            client.println("Content-type:text/html");
-            client.println("Connection: close");
-            client.println();
-
-            // Turns tuning ON and OFF
-            if (header.indexOf("GET /tuning/an") >= 0) {
-              Serial.println("Tuning on");
-              tuningState = "AN";
-            } else if (header.indexOf("GET /tuning/aus") >= 0) {
-              Serial.println("Tuning off");
-              tuningState = "AUS";
-            }
-
-            // Display the HTML web page
-            client.println("<!DOCTYPE html><html>");
-            client.println("<head><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">");
-            client.println("<link rel=\"icon\" href=\"data:,\">");
-            // CSS to style the on/off buttons
-            client.println("<style>html { font-family: Helvetica; display: inline-block; margin: 0px auto; text-align: center;}");
-            client.println(".button { background-color: #FF0000; border: none; color: white; padding: 16px 40px;");
-            client.println("text-decoration: none; font-size: 30px; margin: 2px; cursor: pointer;}");
-            client.println(".button2 {background-color: #4CAF50;}</style></head>");
-
-            // Web Page Heading
-            client.println("<body><h1>Moscow Plus Controller</h1>");
-
-            // Display current state, and ON/OFF buttons
-            client.println("<p>Tuning ist:</p>");
-            if (tuningState == "AN") {
-              client.println("<p><a href=\"/tuning/aus\"><button class=\"button\">AN</button></a></p>");
-            } else {
-              client.println("<p><a href=\"/tuning/an\"><button class=\"button button2\">AUS</button></a></p>");
-            }
-            // The HTTP response ends with another blank line
-            client.println();
-            // Break out of the while loop
-            break;
-          } else { // if you got a newline, then clear currentLine
-            currentLine = "";
-          }
-        } else if (c != '\r') {  // if you got anything else but a carriage return character,
-          currentLine += c;      // add it to the end of the currentLine
-        }
-      }
+  server.on("/", HTTP_GET, [](AsyncWebServerRequest * request) {
+    if (tuningState == "AN") {
+      request->send(SPIFFS, "/tuningan.html", "text/html");
     }
-    // Clear the header variable
-    header = "";
-    // Close the connection
-    client.stop();
-  }
+    else {
+      request->send(SPIFFS, "/tuningaus.html", "text/html");
+    }
+  });
+
+  server.on("/tuningan", HTTP_GET, [](AsyncWebServerRequest * request) {
+    tuningState = "AN";
+    Serial.println("Tuning enabled");
+    request->redirect("/");
+  });
+  server.on("/tuningaus", HTTP_GET, [](AsyncWebServerRequest * request) {
+    tuningState = "AUS";
+    Serial.println("Tuning disabled");
+    request->redirect("/");
+  });
+  server.on("/style.css", HTTP_GET, [](AsyncWebServerRequest * request) {
+    request->send(SPIFFS, "/style.css", "text/css");
+  });
+  server.onNotFound(notFound);
+
+  server.begin();
 }
 
 void recvBytesWithStartEndMarkers1() {
@@ -132,9 +84,6 @@ void recvBytesWithStartEndMarkers1() {
   byte endMarker1 = 0x0D;
   byte endMarker2 = 0x0A;              // und mit CR LF enden
   byte rb;
-
-
-
 
   while (Serial1.available() > 0 && newData1 == false) {
     rb = Serial1.read();
@@ -188,9 +137,9 @@ void recvBytesWithStartEndMarkers2() {
         }
       }
       else {
-        receivedBytes2[ndx - 1] = '\0'; // terminate the string
+        receivedBytes2[ndx - 1] = '\0';                     // terminate the string
         recvInProgress = false;
-        numReceived2 = ndx - 1; // save the number for use when printing
+        numReceived2 = ndx - 1;                             // save the number for use when printing
         ndx = 0;
         newData2 = true;
 
@@ -205,19 +154,19 @@ void recvBytesWithStartEndMarkers2() {
 }
 
 void modNewData() {
-  sendBytes[0] = 0x3A;                        // neues Telegramm mit 0x3A beginnen
+  sendBytes[0] = 0x3A;                                      // neues Telegramm mit 0x3A beginnen
   for (byte n = 0; n < numReceived1; n++) {
-    sendBytes[n + 1] = receivedBytes1[n];      // Die empfangenen Bytes an die nächsten Positionen
+    sendBytes[n + 1] = receivedBytes1[n];                   // Die empfangenen Bytes an die nächsten Positionen
   }
-  sendBytes[10] = 0x0D;                        // CR und LF ans Ende
+  sendBytes[10] = 0x0D;                                     // CR und LF ans Ende
   sendBytes[11] = 0x0A;
 
-  if (tuningState == "AN") {                      // Nur, wenn Tuning via Web-Gui aktiviert ist!!
+  if (tuningState == "AN") {                                // Nur, wenn Tuning via Web-Gui aktiviert ist!!
 
-    if (sendBytes[3] == (0x42) ) {                // Wenn das 4. Byte 0x42 (2. Stufe) dann
-      sendBytes[2] = (0x0B);                      //  3. Byte (Unterstützungslevel)
-      sendBytes[3] = (0x46);                      //  4. Byte (Stufe) auf 6
-      sendBytes[4] = (0x24);                      // und 5. Byte (Speed) auf 36km/h
+    if (sendBytes[3] == (0x42) ) {                          // Wenn das 4. Byte 0x42 (2. Stufe) dann
+      sendBytes[2] = (0x0B);                                //  3. Byte (Unterstützungslevel)
+      sendBytes[3] = (0x46);                                //  4. Byte (Stufe) auf 6
+      sendBytes[4] = (0x24);                                // und 5. Byte (Speed) auf 36km/h
     }
   }
 }
@@ -244,8 +193,8 @@ void showNewData() {
       Serial.print(' ');
 
     }
-    Serial.println();                          // bis hier DebugInfo via USB an PC
-    Serial1.write(sendBytes, 12);             // Telegramm rausschicken
+    Serial.println();                                       // bis hier DebugInfo via USB an PC
+    Serial1.write(sendBytes, 12);                           // Telegramm rausschicken
     newData1 = false;
   }
 
@@ -258,6 +207,19 @@ void showNewData() {
     Serial.println();
     newData2 = false;
 
-    Serial.println();                          // bis hier DebugInfo via USB an PC
+    Serial.println();                                       // bis hier DebugInfo via USB an PC
   }
+}
+
+// Tuning-Loop
+void tuning() {
+  recvBytesWithStartEndMarkers1();                          // Checks for new message from display
+  modNewData();                                             // Does the magic
+  Checksumm();                                              // Calculates the checksum
+  showNewData();                                            // Sends modified data
+  recvBytesWithStartEndMarkers2();                          // Checks for new message from controller
+}
+
+void loop() {
+  tuning();
 }
