@@ -3,6 +3,8 @@
 #include <Arduino.h>
 #include <ESPAsyncWebServer.h>
 #include <SPIFFS.h>
+#include <mDNS.h>
+#include <Update.h>
 
 // WiFi-AP SSID & Password
 const char* ssid = "Moscow Plus";
@@ -13,6 +15,10 @@ IPAddress local_ip(192, 168, 1, 1);
 IPAddress gateway(192, 168, 1, 1);
 IPAddress subnet(255, 255, 255, 0);
 AsyncWebServer server(80);
+
+//OTA Updates
+const char* serverIndex = "<form method='POST' action='/update' enctype='multipart/form-data'><input type='file' name='update'><input type='submit' value='Update'></form>";
+bool restartRequired = false;  // Set this flag in the callbacks to restart ESP in the main loop
 
 // Stores the current states, disables tuning on boot
 String tuningState = "AUS";
@@ -58,7 +64,6 @@ void setup() {
       request->send(SPIFFS, "/tuningaus.html", "text/html");
     }
   });
-
   server.on("/tuningan", HTTP_GET, [](AsyncWebServerRequest * request) {
     tuningState = "AN";
     Serial.println("Tuning enabled");
@@ -72,8 +77,41 @@ void setup() {
   server.on("/style.css", HTTP_GET, [](AsyncWebServerRequest * request) {
     request->send(SPIFFS, "/style.css", "text/css");
   });
-  server.onNotFound(notFound);
+  server.on("/update", HTTP_POST, [](AsyncWebServerRequest * request) {
+    // the request handler is triggered after the upload has finished...
+    // create the response, add header, and send response
+    AsyncWebServerResponse *response = request->beginResponse(200, "text/plain", (Update.hasError()) ? "FAIL" : "OK");
+    response->addHeader("Connection", "close");
+    response->addHeader("Access-Control-Allow-Origin", "*");
+    restartRequired = true;  // Tell the main loop to restart the ESP
+    request->send(response);
+  }, [](AsyncWebServerRequest * request, String filename, size_t index, uint8_t *data, size_t len, bool final) {
+    //Upload handler chunks in data
 
+    if (!index) { // if index == 0 then this is the first frame of data
+      Serial.printf("UploadStart: %s\n", filename.c_str());
+      Serial.setDebugOutput(true);
+
+      // calculate sketch space required for the update
+      uint32_t maxSketchSpace = (ESP.getFreeSketchSpace() - 0x1000) & 0xFFFFF000;
+      if (!Update.begin(maxSketchSpace)) { //start with max available size
+        Update.printError(Serial);
+      }
+    }
+    //Write chunked data to the free sketch space
+    if (Update.write(data, len) != len) {
+      Update.printError(Serial);
+    }
+    if (final) { // if the final flag is set then this is the last frame of data
+      if (Update.end(true)) { //true to set the size to the current progress
+        Serial.printf("Update Success: %u B\nRebooting...\n", index + len);
+      } else {
+        Update.printError(Serial);
+      }
+      Serial.setDebugOutput(false);
+    }
+  });
+  server.onNotFound(notFound);
   server.begin();
 }
 
@@ -219,7 +257,16 @@ void tuning() {
   showNewData();                                            // Sends modified data
   recvBytesWithStartEndMarkers2();                          // Checks for new message from controller
 }
+// OTA Update-Loop
+void ota() {
+  if (restartRequired) { // check the flag here to determine if a restart is required
+    Serial.printf("Restarting ESP\n\r");
+    restartRequired = false;
+    ESP.restart();
+  }
+}
 
 void loop() {
   tuning();
+  ota();
 }
