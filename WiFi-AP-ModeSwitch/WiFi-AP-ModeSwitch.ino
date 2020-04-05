@@ -20,8 +20,8 @@ AsyncWebServer server(80);
 const char* serverIndex = "<form method='POST' action='/update' enctype='multipart/form-data'><input type='file' name='update'><input type='submit' value='Update'></form>";
 bool restartRequired = false;  // Set this flag in the callbacks to restart ESP in the main loop
 
-// Stores the current states, disables tuning on boot
-String tuningState = "NORMAL";
+// Stores the current states, sets ECO state on boot
+String tuningState = "ECO";
 
 // Tuning-specific
 const byte numBytes = 32;
@@ -48,7 +48,9 @@ void setup() {
     Serial.println("An Error has occurred while mounting SPIFFS");
     return;
   }
+  WiFi.persistent(false);
   WiFi.softAP(ssid, password);
+  delay(2000); // Fix for reboot loop on WiFi connect
   WiFi.softAPConfig(local_ip, gateway, subnet);
   server.begin();
 
@@ -209,12 +211,15 @@ void modNewData() {
 
   if (tuningState == "POWER") {                             // Falls "Power" ausgewählt wurde:
       sendBytes[2] = (0x0B);                                //  3. Byte (Unterstützungslevel) auf 0B=Power
+      sendBytes[4] = (0x23);                                // Max Geschwindigkeit: 35
   }
-  else if (tuningState == "ECO") {                          // Falls "Eco" ausgewählt wurde:
+  else if (tuningState == "ECO") {                          // Falls nichts, bzw. "Eco" ausgewählt wurde:
       sendBytes[2] = (0x09);                                //  3. Byte (Unterstützungslevel) auf 09=Eco
+      sendBytes[4] = (0x19);                                // Max Geschwindigkeit: 25
   }
-    else if (tuningState == "NORMAL") {                     // Falls nichts, bzw. "Normal" ausgewählt wurde:
-      sendBytes[2] = (0x09);                                //  3. Byte (Unterstützungslevel) auf 0A=Normal
+    else if (tuningState == "NORMAL") {                     // Falls "Normal" ausgewählt wurde:
+      sendBytes[2] = (0x0A);                                //  3. Byte (Unterstützungslevel) auf 0A=Normal
+      sendBytes[4] = (0x1B);                                // Max Geschwindigkeit: 27
   }
 }
 
